@@ -1,0 +1,4 @@
+D:/_1work/pycharmcode/pycharmproject/layerprune/main.py
+learning rate adjusted: 0.01 1
+Epoch: [1][0/781]	Time 23.043 (23.043)	Loss 3.8153 (3.8153)	Prec@1 1.562 (1.562)	Prec@5 46.875 (46.875)
+Epoch: [1][10/781]	Time 0.238 (2.223)	Loss 2.5863 (3.1012)	Prec@1 9.375 (6.818)	Prec@5 50.000 (50.426)

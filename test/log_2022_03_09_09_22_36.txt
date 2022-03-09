@@ -1,0 +1,2 @@
+D:/_1work/pycharmcode/pycharmproject/layerprune/main.py
+learning rate adjusted: 0.01 1
