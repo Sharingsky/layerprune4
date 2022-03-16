@@ -22,23 +22,23 @@ export CUDA_VISIBLE_DEVICES=0
 
 echo 'Filter pruning ...'
 
-for method in 0 2 6 22 30
-do
-    root=$dataset'/'$model'50/one_shot_criterion'$method
-    dir=$root'/filterpruning'
+#for method in 0 2 6 22 30
+#do
+#    root=$dataset'/'$model'50/one_shot_criterion'$method
+#    dir=$root'/filterpruning'
+#
+#    echo "Checkpoint director: " $dir
+#    python main.py --name=$dir --dataset=$dataset \
+#        --lr=$lr --lr-decay-every=$lrdecayeach --momentum=0.9 --epochs=30 --batch-size=128 \
+#        --pruning=True --seed=0 --model=$model'50' \
+#        --mgpu=False --group_wd_coeff=1e-8 --wd=$wd --tensorboard=True --pruning-method=$method \
+#        --data=${datasetdir} --no_grad_clip=True --pruning_config=$pruningconfig \
+#        --only-estimate-latency=True \
+#        --data=${datasetdir} --ratio $ratio --prune-latency-ratio $latencyratio \
+#        --load_model $loadmodel
+#done
 
-    echo "Checkpoint director: " $dir
-    python main.py --name=$dir --dataset=$dataset \
-        --lr=$lr --lr-decay-every=$lrdecayeach --momentum=0.9 --epochs=30 --batch-size=128 \
-        --pruning=True --seed=0 --model=$model'50' \
-        --mgpu=False --group_wd_coeff=1e-8 --wd=$wd --tensorboard=True --pruning-method=$method \
-        --data=${datasetdir} --no_grad_clip=True --pruning_config=$pruningconfig \
-        --only-estimate-latency=True \
-        --data=${datasetdir} --ratio $ratio --prune-latency-ratio $latencyratio \
-        --load_model $loadmodel
-done
-
-for nr in 1 2
+for nr in 1 2 4 8 16
 do
     echo 'Block pruning ... '$nr
     for method in 0 2 6 22 30

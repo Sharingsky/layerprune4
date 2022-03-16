@@ -3,7 +3,9 @@ import argparse
 import numpy as np
 import os
 import shutil
-
+from cifar.mobilenetv1 import MobileV1Block
+from cifar.mobilenetv2 import InvertedResidual
+from cifar.mobilenetv3 import Block,hsigmoid,hswish
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -45,24 +47,24 @@ parser.add_argument('--log-interval', type=int, default=100, metavar='N',
                     help='how many batches to wait before logging training status')
 parser.add_argument('--save', default='./logs', type=str, metavar='PATH',
                     help='path to save prune model (default: current directory)')
-parser.add_argument('--arch', default='vgg', type=str,
+parser.add_argument('--arch', default='resnet56', type=str,
                     help='architecture to use')
-parser.add_argument('--depth', default=16, type=int,
+parser.add_argument('--depth', default=56, type=int,
                     help='depth of the neural network')
 parser.add_argument('--gpuid', default=0, type=int, help='')
 parser.add_argument('--action', default='train', type=str, help='')
 
 #Layer pruning
-parser.add_argument('--load-model', default='', type=str, help='pretrained model')
-parser.add_argument('--criterion', default='', type=str, help='Path to criterion')
-parser.add_argument('--remove-layers', default=0, type=int, help='How many layers/blocks to remove')
+parser.add_argument('--load-model', default='/home/lion/PycharmProjects/layerprune4/CIFAR100-baseline/resnet50/model_best.pth.tar', type=str, help='pretrained model')
+parser.add_argument('--criterion', default='/home/lion/PycharmProjects/layerprune4/CIFAR100/resnet50/one_shot_criterion0/criteria_0_importance.pickle', type=str, help='Path to criterion')
+parser.add_argument('--remove-layers', default=2, type=int, help='How many layers/blocks to remove')
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 
 arch_method_blocksfn_mapping = {}
 
-def get_pruned_resnet56(model, crit, groups):
+def get_pruned_resnet56(model: object, crit: object, groups: object) -> object:
 
     groupscum = []
     sofar=0
@@ -84,7 +86,9 @@ def get_pruned_resnet56(model, crit, groups):
         if (whichblock > 0 or whichlayer ==0 ) and blockid >= 0 :
             block = mapping[whichlayer][whichblock]
             print('       Removing block %d from group %d'%(whichblock,whichlayer+1))
-            mapping[whichlayer][whichblock] = nn.Identity()
+            inchannel = block.conv1.weight.size(1)
+            outchannel = block.conv2.weight.size(0)
+            mapping[whichlayer][whichblock] =nn.Identity()
             i+=1
         j+=1
 
@@ -137,7 +141,8 @@ else:
 
 print('==> Model ', args.arch)
 from thop import profile
-model = models.__dict__[args.arch](dataset=args.dataset, depth=args.depth, add_gates = False)
+# model = models.__dict__[args.arch](dataset=args.dataset, depth=args.depth, add_gates = False)
+model = models.resnet56(dataset=args.dataset,  add_gates = False)
 
 if len(args.load_model)>0:
     checkpoint = torch.load(args.load_model)
