@@ -15,7 +15,7 @@ if __name__ == "__main__":
     root = sys.argv[1]
     dirs = list(os.walk(root))[0][1]
     mapping = {0: 'Weights Taylor', 2: 'Weights norm', 6:'Feature maps', 22:'Gate Taylor', 30: 'BN scale'}
-    strTable = "<html>"+get_css()+"<table><tr class='border_bottom'><th>Method</th><th>Accuracy</th></tr>"
+    strTable = "<html>"+get_css()+"<table><tr class='border_bottom'><th>Method</th><th>Accuracy</th><th>Flops_reduce</th></tr>"
 
     for d in dirs:
         subdir = os.path.join(*[root, d])
@@ -28,7 +28,8 @@ if __name__ == "__main__":
         filterprune = [os.path.join(*[subdir,f,'models']) for f in list(os.walk(subdir))[0][1] if 'filterpruning' in f][-1]
         modelpath = os.path.join(filterprune,'best_model.weights')
         best_prec = torch.load(modelpath)['best_prec1']
-        strRW = "<tr><td>"+name+"_filter pruning </td><td>"+('%.2f %%'%best_prec)+"</td></tr>"
+        flops_reduce = torch.load(modelpath)['flops_reduce']
+        strRW = "<tr><td>"+name+"_filter pruning </td><td>"+('%.2f %%'%best_prec)+"</td><td>"+('%.2f %%'%flops_reduce)+"</td></tr>"
         strTable = strTable+strRW
 
         #Block pruning
@@ -37,10 +38,11 @@ if __name__ == "__main__":
             modelpath = os.path.join(f,'best_model.pth.tar')
             best_prec = torch.load(modelpath)['best_prec1'].item()*100
             nlayer = f.split('finetune-')[-1]
+            flops_reduce = torch.load(modelpath)['flops_reduce']
             if i == len(finetune)-1:
-                strRW = "<tr class='border_bottom'><td>"+name+'_Block pruning<sub>'+nlayer+ "</sub></td><td>"+('%.2f %%'%best_prec)+"</td></tr>"
+                strRW = "<tr class='border_bottom'><td>"+name+'_Block pruning<sub>'+nlayer+ "</sub></td><td>"+('%.2f %%'%best_prec)+"</td><td>"+('%.2f %%'%flops_reduce)+"</td></tr>"
             else:
-                strRW = "<tr><td>"+name+'_Block pruning<sub>'+nlayer+ "</sub></td><td>"+('%.2f %%'%best_prec)+"</td></tr>"
+                strRW = "<tr><td>"+name+'_Block pruning<sub>'+nlayer+ "</sub></td><td>"+('%.2f %%'%best_prec)+"</td><td>"+('%.2f %%'%flops_reduce)+"</td></tr>"
             strTable = strTable+strRW
 
     strTable = strTable+"</table></html>"
