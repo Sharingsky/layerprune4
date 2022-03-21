@@ -3,9 +3,7 @@ import argparse
 import numpy as np
 import os
 import shutil
-from cifar.mobilenetv1 import MobileV1Block
-from cifar.mobilenetv2 import InvertedResidual
-from cifar.mobilenetv3 import Block,hsigmoid,hswish
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,7 +12,7 @@ from torchvision import datasets, transforms
 from torch.autograd import Variable
 import pdb
 import cifar as models
-
+from cifar.mobilenetv1 import MobileV1Block
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch Slimming CIFAR training')
@@ -24,7 +22,7 @@ parser.add_argument('--batch-size', type=int, default=128, metavar='N',
                     help='input batch size for training (default: 128)')
 parser.add_argument('--test-batch-size', type=int, default=100, metavar='N',
                     help='input batch size for testing (default: 100)')
-parser.add_argument('--epochs', type=int, default=1, metavar='N',
+parser.add_argument('--epochs', type=int, default=164, metavar='N',
                     help='number of epochs to train (default: 160)')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
@@ -55,8 +53,8 @@ parser.add_argument('--gpuid', default=0, type=int, help='')
 parser.add_argument('--action', default='train', type=str, help='')
 
 #Layer pruning
-parser.add_argument('--load-model', default='/home/lion/PycharmProjects/layerprune4/CIFAR100-baseline/resnet50/model_best.pth.tar', type=str, help='pretrained model')
-parser.add_argument('--criterion', default='/home/lion/PycharmProjects/layerprune4/CIFAR100/resnet50/one_shot_criterion0/criteria_0_importance.pickle', type=str, help='Path to criterion')
+parser.add_argument('--load-model', default='D:/_1work/pycharmcode/pycharmproject/layerprune/CIFAR100-baseline/resnet50/model_best.pth.tar', type=str, help='pretrained model')
+parser.add_argument('--criterion', default='D:/_1work\pycharmcode/pycharmproject/layerprune/CIFAR100/resnet50/one_shot_criterion0/criteria_0_importance.pickle', type=str, help='Path to criterion')
 parser.add_argument('--remove-layers', default=2, type=int, help='How many layers/blocks to remove')
 
 args = parser.parse_args()
@@ -64,7 +62,7 @@ args.cuda = not args.no_cuda and torch.cuda.is_available()
 
 arch_method_blocksfn_mapping = {}
 
-def get_pruned_resnet56(model: object, crit: object, groups: object) -> object:
+def get_pruned_resnet56(model, crit, groups):
 
     groupscum = []
     sofar=0
@@ -83,7 +81,6 @@ def get_pruned_resnet56(model: object, crit: object, groups: object) -> object:
         for whichlayer, g in enumerate(groupscum):
             if g > blockid:
                 break
-
         whichblock = blockid%groups[whichlayer]
         whichblock_lis.append(whichblock)
         whichlayer_lis.append(whichlayer+1)
@@ -92,15 +89,11 @@ def get_pruned_resnet56(model: object, crit: object, groups: object) -> object:
             print('       Removing block %d from group %d'%(whichblock,whichlayer+1))
             inchannel = block.conv1.weight.size(1)
             outchannel = block.conv2.weight.size(0)
-            # mapping[whichlayer][whichblock] = MobileV1Block(in_planes=inchannel,out_planes=outchannel)
-            # mapping[whichlayer][whichblock] =nn.Identity()
-            # mapping[whichlayer][whichblock] = Block(kernel_size=3,
-            #              in_size=inchannel,expand_size=outchannel,out_size=outchannel,
-            #                                         nolinear=nn.ReLU(),semodule=hswish(),stride=1)
-            mapping[whichlayer][whichblock] = InvertedResidual(inp=inchannel,oup=outchannel,stride=1,expand_ratio=1)
+            mapping[whichlayer][whichblock] = MobileV1Block(in_planes=inchannel,out_planes=outchannel)
+            # mapping[whichlayer][whichblock] = nn.Identity()
             i+=1
         j+=1
-    return whichblock_lis, whichlayer_lis
+    return whichblock_lis,whichlayer_lis
 
 
 def prune_cifar_resnet56(model):
@@ -110,11 +103,10 @@ def prune_cifar_resnet56(model):
     groups = [(depth - 2) // 6]*3
     whichblock_lis,whichlayer_lis=get_pruned_resnet56(model, crit, groups)
     return whichblock_lis,whichlayer_lis
-
 if not os.path.exists(args.save):
     os.makedirs(args.save)
 
-kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
+kwargs = {'num_workers': 1, 'pin_memory': False} if args.cuda else {}
 if args.dataset == 'cifar10':
     train_loader = torch.utils.data.DataLoader(
         datasets.CIFAR10('./data.cifar10', train=True, download=True,
@@ -152,9 +144,15 @@ else:
 
 print('==> Model ', args.arch)
 from thop import profile
-# model = models.__dict__[args.arch](dataset=args.dataset, depth=args.depth, add_gates = False)
-model = models.resnet56(dataset=args.dataset,  add_gates = False)
+model = models.resnet56(dataset=args.dataset,add_gates=False)
 origin_model = models.resnet56(dataset=args.dataset,add_gates=False)
+def register_handle(model:nn.Module):
+    '''
+    :param model:
+    :return: handle
+    '''
+    for name,param in model.named_parameters():
+        print(name)
 
 if len(args.load_model)>0:
     checkpoint = torch.load(args.load_model)
@@ -162,7 +160,7 @@ if len(args.load_model)>0:
         checkpoint = checkpoint['state_dict']
     #checkpoint = {k.replace('features','feature').replace('module.',''):v for k, v in checkpoint.items()}
     model.load_state_dict(checkpoint)
-    origin_model.load_state_dict(checkpoint)
+
 args.arch_depth = args.arch + str(args.depth)
 
 if args.remove_layers !=0:
@@ -171,7 +169,6 @@ if args.remove_layers !=0:
     whichblock_lis,whichlayer_lis=prune_cifar_resnet56(model)
     macs, params = profile(model, inputs=(input, ))
     print('flops reduction %0.3f'%((1-(macs/omacs))*100))
-
     #print(model)
 
 if args.cuda:
@@ -187,7 +184,6 @@ if args.resume:
         args.start_epoch = checkpoint['epoch']
         best_prec1 = checkpoint['best_prec1']
         model.load_state_dict(checkpoint['state_dict'])
-        origin_model.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         print("=> loaded checkpoint '{}' (epoch {}) Prec1: {:f}"
               .format(args.resume, checkpoint['epoch'], best_prec1))
@@ -200,23 +196,23 @@ def train(epoch,replace_dict):
     avg_loss = 0.
     train_acc = 0.
     ''''--------------------register_handle---------------'''
-    hook_handle1 = []
-    hook_handle2 = []
+    # hook_model1 = []
+    # hook_model2 = []
 
-    # def hook1(model,feature_in,feature_out):
-    #     # hook_model1.append(model.__class__)
-    #     feature_out1_hook.append(feature_out)
-    #     return None
-    # def hook2(model,feature_in,feature_out):
-    #     # hook_model2.append(model.__class__)
-    #     feature_out2_hook.append(feature_out)
-    #     return None
-    # for key,item in replace_dict.items():
-    #     hook_handle1.append(origin_model.__getattr__('layer{}'.format(item[1])).__getattr__('{}'.format(item[0]))\
-    #         .__getattr__('conv2').register_forward_hook(hook1))
-    # for key,item in replace_dict.items():
-    #     hook_handle2.append(model.__getattr__('layer{}'.format(item[1])).__getattr__('{}'.format(item[0])).\
-    #         __getattr__('pointwise').__getattr__('conv').register_forward_hook(hook2))
+    def hook1(model,feature_in,feature_out):
+        # hook_model1.append(model.__class__)
+        feature_out1_hook.append(feature_out)
+        return None
+    def hook2(model,feature_in,feature_out):
+        # hook_model2.append(model.__class__)
+        feature_out2_hook.append(feature_out)
+        return None
+    for key,item in replace_dict.items():
+        origin_model.__getattr__('layer{}'.format(item[1])).__getattr__('{}'.format(item[0]))\
+            .__getattr__('conv2').register_forward_hook(hook1)
+    for key,item in replace_dict.items():
+        model.__getattr__('layer{}'.format(item[1])).__getattr__('{}'.format(item[0])).\
+            __getattr__('pointwise').__getattr__('conv').register_forward_hook(hook2)
 
     ''''--------------------register_handle-end---------------'''
     for batch_idx, (data, target) in enumerate(train_loader):
@@ -226,27 +222,21 @@ def train(epoch,replace_dict):
         feature_out1_hook = []
         feature_out2_hook = []
         output = model(data)
-        # output2=origin_model(data)
-        # loss=0
-        # for data1,data2 in zip(feature_out2_hook,feature_out1_hook):
-        #     loss+=F.mse_loss(data1,data2)
-
-        loss=F.cross_entropy(output, target)
-
+        output2=origin_model(data)
+        loss=0
+        for data1,data2 in zip(feature_out1_hook,feature_out2_hook):
+            loss+=F.mse_loss(data1,data2)
+        # loss = F.cross_entropy(output, target)
         avg_loss += loss.item()
         pred = output.data.max(1, keepdim=True)[1]
         train_acc += pred.eq(target.data.view_as(pred)).cpu().sum()
         loss.backward()
         optimizer.step()
-
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.1f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), loss.item()))
-    # for item in hook_handle1:
-    #     item.remove()
-    # for item in hook_handle2:
-    #     item.remove()
+
 def test():
     model.eval()
     test_loss = 0
@@ -269,52 +259,32 @@ def save_checkpoint(state, is_best, filepath):
     torch.save(state, os.path.join(filepath, 'checkpoint.pth.tar'))
     if is_best:
         shutil.copyfile(os.path.join(filepath, 'checkpoint.pth.tar'), os.path.join(filepath, 'best_model.pth.tar'))
-
-
-def freeze_grad(model:nn.Module,replace_dict):
-    flag=0
-    for name,params in model.named_parameters():
-        for key,value in replace_dict.items():
-            if not 'layer{}.{}'.format(str(value[1]),str(value[0]) in name):
-                flag=0
-            else:
-                flag=1
-        if flag==0:
-            params.requires_grad=False
-        else:
-            flag=0
-
-if args.action == 'train':
+if __name__ =='__main__':
     from multiprocessing import *
     freeze_support()
-    for name,params in model.named_parameters():
-        print(name)
-    replace_dict={}
     best_prec1 = 0.
     prec1 = test()
-    assert args.remove_layers !=0
-    flops_reduce = (1 - (macs / omacs)) * 100
-
+    replace_dict={}
     for i,(whichblock,whichlayer) in enumerate(zip(whichblock_lis,whichlayer_lis)):
         replace_dict[i]=(whichblock,whichlayer)
-    freeze_grad(model, replace_dict)
-    for epoch in range(args.start_epoch, args.epochs):
-        lr = args.lr * (args.lr_decay_scalar ** (epoch // args.lr_decay_every))
-        if lr != args.lr:
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr
-        train(epoch,replace_dict)
-        prec1 = test()
-        is_best = prec1 > best_prec1
-        best_prec1 = max(prec1, best_prec1)
-        save_checkpoint({
-            'epoch': epoch + 1,
-            'state_dict': model.state_dict(),
-            'best_prec1': best_prec1,
-            'optimizer': optimizer.state_dict(),
-            'cfg': model.cfg,
-            'flops_reduce':flops_reduce,
-        }, is_best, filepath=args.save)
+    register_handle(model)
+    model_lis= model.modules()
+    if args.action == 'train':
+        for epoch in range(args.start_epoch, args.epochs):
+            lr = args.lr * (args.lr_decay_scalar ** (epoch // args.lr_decay_every))
+            if lr != args.lr:
+                for param_group in optimizer.param_groups:
+                    param_group['lr'] = lr
+            train(epoch,replace_dict)
+            prec1 = test()
+            is_best = prec1 > best_prec1
+            best_prec1 = max(prec1, best_prec1)
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'state_dict': model.state_dict(),
+                'best_prec1': best_prec1,
+                'optimizer': optimizer.state_dict(),
+                'cfg': model.cfg
+            }, is_best, filepath=args.save)
 
-
-    print('Best achieved: ',best_prec1)
+        print('Best achieved: ',best_prec1)
