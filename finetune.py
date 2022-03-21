@@ -24,7 +24,7 @@ parser.add_argument('--batch-size', type=int, default=128, metavar='N',
                     help='input batch size for training (default: 128)')
 parser.add_argument('--test-batch-size', type=int, default=100, metavar='N',
                     help='input batch size for testing (default: 100)')
-parser.add_argument('--epochs', type=int, default=164, metavar='N',
+parser.add_argument('--epochs', type=int, default=1, metavar='N',
                     help='number of epochs to train (default: 160)')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
@@ -94,12 +94,13 @@ def get_pruned_resnet56(model: object, crit: object, groups: object) -> object:
             outchannel = block.conv2.weight.size(0)
             # mapping[whichlayer][whichblock] = MobileV1Block(in_planes=inchannel,out_planes=outchannel)
             # mapping[whichlayer][whichblock] =nn.Identity()
-            mapping[whichlayer][whichblock] = Block(kernel_size=3,
-                         in_size=inchannel,expand_size=outchannel,out_size=outchannel,
-                                                    nolinear=nn.ReLU(),semodule=hswish(),stride=1)
+            # mapping[whichlayer][whichblock] = Block(kernel_size=3,
+            #              in_size=inchannel,expand_size=outchannel,out_size=outchannel,
+            #                                         nolinear=nn.ReLU(),semodule=hswish(),stride=1)
+            mapping[whichlayer][whichblock] = InvertedResidual(inp=inchannel,oup=outchannel,stride=1,expand_ratio=1)
             i+=1
         j+=1
-        return whichblock_lis, whichlayer_lis
+    return whichblock_lis, whichlayer_lis
 
 
 def prune_cifar_resnet56(model):
@@ -293,6 +294,7 @@ if args.action == 'train':
     prec1 = test()
     assert args.remove_layers !=0
     flops_reduce = (1 - (macs / omacs)) * 100
+
     for i,(whichblock,whichlayer) in enumerate(zip(whichblock_lis,whichlayer_lis)):
         replace_dict[i]=(whichblock,whichlayer)
     freeze_grad(model, replace_dict)
@@ -311,7 +313,7 @@ if args.action == 'train':
             'best_prec1': best_prec1,
             'optimizer': optimizer.state_dict(),
             'cfg': model.cfg,
-            'flops_reduce':flops_reduce
+            'flops_reduce':flops_reduce,
         }, is_best, filepath=args.save)
 
 

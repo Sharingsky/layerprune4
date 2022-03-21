@@ -39,9 +39,11 @@ echo 'Filter pruning ...'
 #done
 
 for nr in 1 2 4 8 16
+#for nr in 1
 do
     echo 'Block pruning ... '$nr
     for method in 0 2 6 22 30
+#    for method in 0
     do
         root=$dataset'/'$model'50/one_shot_criterion'$method
         crit=$root'/criteria_'$method'_importance.pickle'

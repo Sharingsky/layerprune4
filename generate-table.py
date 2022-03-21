@@ -28,8 +28,7 @@ if __name__ == "__main__":
         filterprune = [os.path.join(*[subdir,f,'models']) for f in list(os.walk(subdir))[0][1] if 'filterpruning' in f][-1]
         modelpath = os.path.join(filterprune,'best_model.weights')
         best_prec = torch.load(modelpath)['best_prec1']
-        flops_reduce = torch.load(modelpath)['flops_reduce']
-        strRW = "<tr><td>"+name+"_filter pruning </td><td>"+('%.2f %%'%best_prec)+"</td><td>"+('%.2f %%'%flops_reduce)+"</td></tr>"
+        strRW = "<tr><td>"+name+"_filter pruning </td><td>"+('%.2f %%'%best_prec)+"</td></tr>"
         strTable = strTable+strRW
 
         #Block pruning
